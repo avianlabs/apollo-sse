@@ -1,0 +1,44 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':label(dependencies)',
+    ':automergePatch',
+    ':combinePatchMinorReleases',
+    ':prConcurrentLimit10',
+    ':timezone(Europe/London)',
+    'group:recommended',
+    'group:testNonMajor',
+    'workarounds:all',
+  ],
+  schedule: 'before 5am on Monday',
+  prHourlyLimit: 0,
+  lockFileMaintenance: {
+    enabled: true,
+  },
+  rebaseWhen: 'never',
+  packageRules: [
+    {
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+        'pin',
+        'digest',
+      ],
+      automerge: true,
+    },
+    {
+      groupName: 'Kotlin',
+      matchPackageNames: [
+        'org.jetbrains.kotlin{/,}**',
+        'com.google.devtools.ksp{/,}**',
+      ],
+    },
+    {
+      groupName: 'Apollo',
+      matchPackageNames: [
+        'com.apollographql.apollo{/,}**',
+      ],
+    },
+  ],
+}

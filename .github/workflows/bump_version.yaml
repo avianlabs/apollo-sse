@@ -1,0 +1,79 @@
+name: Version Bump
+on:
+  release:
+    types:
+      - created
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Bump type (major, minor, patch)'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Latest Commit
+        uses: actions/checkout@v6
+
+      - name: Output before version
+        id: get-before-version
+        shell: bash
+        run: echo "before-version=$(.github/scripts/get-version.sh)" >> $GITHUB_OUTPUT
+
+      - name: Bump Version
+        run: .github/scripts/version-bump.sh ${{ inputs.bump || 'patch' }}
+        shell: bash
+
+      - name: Set outputs
+        id: get-outputs
+        shell: bash
+        env:
+          BEFORE_VERSION: ${{ steps.get-before-version.outputs.before-version }}
+        run: |
+          echo "version=$(.github/scripts/get-version.sh)" >> $GITHUB_OUTPUT
+          echo "bumped=$(.github/scripts/bumped.sh)" >> $GITHUB_OUTPUT
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v8
+        id: cpr
+        with:
+          token: ${{ secrets.ORG_BOT_TOKEN }}
+          commit-message: "Bump version from ${{ steps.get-before-version.outputs.before-version }} to ${{ steps.get-outputs.outputs.version }}"
+          title: "Bump version from ${{ steps.get-before-version.outputs.before-version }} to ${{ steps.get-outputs.outputs.version }}"
+          branch: "bump-version-${{ steps.get-outputs.outputs.version }}"
+          base: "main"
+          labels: "version-bump"
+
+      - name: Force merge PR
+        if: ${{ steps.cpr.outputs.pull-request-number }}
+        # Ignore if failed
+        continue-on-error: true
+        # Match head commit to avoid security holes
+        env:
+          GH_TOKEN: ${{ secrets.ORG_BOT_TOKEN }}
+        run: |
+          gh pr merge \
+          --match-head-commit "${{ steps.cpr.outputs.pull-request-head-sha }}" \
+          --rebase \
+          --admin \
+          "${{ steps.cpr.outputs.pull-request-number }}"
+
+      - name: Result
+        shell: bash
+        run: "echo 'Version is now ${{ steps.get-outputs.outputs.version }} (Bumped: ${{ steps.get-outputs.outputs.bumped }})'"
